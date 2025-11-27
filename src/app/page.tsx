@@ -13,7 +13,7 @@ export default function Home() {
         </div>
 
         {/* Games Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
           {/* Blind Grid Card */}
           <a
             href="/blind-grid"
@@ -50,6 +50,26 @@ export default function Home() {
                   Launch Game →
                 </span>
                 <div className="w-8 h-8 bg-cyan-400/20 rounded group-hover:bg-cyan-400/40 transition-colors" />
+              </div>
+            </div>
+          </a>
+
+          {/* Voxel Carver Card */}
+          <a
+            href="/voxel-carver"
+            className="group relative overflow-hidden rounded-lg bg-gray-800 p-8 border border-gray-700 hover:border-yellow-400 transition-all duration-300 hover:shadow-[0_0_20px_rgba(250,204,21,0.3)]"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 space-y-4">
+              <h2 className="text-2xl font-bold text-yellow-400">Voxel Carver</h2>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                Visualize a 3D cube being carved by laser cuts. Track which blocks remain after each transformation.
+              </p>
+              <div className="flex items-center justify-between pt-4">
+                <span className="text-xs uppercase tracking-widest text-gray-500">
+                  Launch Game →
+                </span>
+                <div className="w-8 h-8 bg-yellow-400/20 rounded group-hover:bg-yellow-400/40 transition-colors" />
               </div>
             </div>
           </a>
