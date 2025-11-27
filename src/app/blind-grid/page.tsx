@@ -13,7 +13,14 @@ interface Command {
     type: CommandType;
     description: string;
     // Params vary based on type, used for internal logic
-    params?: any; 
+    params?: {
+        r1?: number;
+        c1?: number;
+        r2?: number;
+        c2?: number;
+        row?: number;
+        val?: number;
+    };
 }
 
 // --- HELPER FUNCTIONS ---
@@ -42,17 +49,24 @@ const applyCommand = (grid: Grid, cmd: Command): Grid => {
         return rotated;
     } 
     else if (cmd.type === 'SWAP') {
-        const { r1, c1, r2, c2 } = cmd.params;
-        const temp = newGrid[r1][c1];
-        newGrid[r1][c1] = newGrid[r2][c2];
-        newGrid[r2][c2] = temp;
+        const { r1, c1, r2, c2 } = cmd.params ?? {};
+        if (
+            typeof r1 === 'number' && typeof c1 === 'number' &&
+            typeof r2 === 'number' && typeof c2 === 'number'
+        ) {
+            const temp = newGrid[r1][c1];
+            newGrid[r1][c1] = newGrid[r2][c2];
+            newGrid[r2][c2] = temp;
+        }
         return newGrid;
     } 
     else if (cmd.type === 'SET_ROW') {
-        const { row, val } = cmd.params;
-        // row comes in as 0-indexed from the generator
-        for (let c = 0; c < N; c++) {
-            newGrid[row][c] = val;
+        const { row, val } = cmd.params ?? {};
+        if (typeof row === 'number' && typeof val === 'number') {
+            // row comes in as 0-indexed from the generator
+            for (let c = 0; c < N; c++) {
+                newGrid[row][c] = val;
+            }
         }
         return newGrid;
     }
@@ -78,7 +92,7 @@ const generateRandomCommands = (count: number = 3): Command[] => {
             const r1 = Math.floor(Math.random() * 3);
             const c1 = Math.floor(Math.random() * 3);
             let r2 = Math.floor(Math.random() * 3);
-            let c2 = Math.floor(Math.random() * 3);
+            const c2 = Math.floor(Math.random() * 3);
             
             // Ensure we don't swap the same cell
             while (r1 === r2 && c1 === c2) {
@@ -148,42 +162,38 @@ const BlindGridPage: React.FC = () => {
 
     // Phase Manager
     useEffect(() => {
-        let timer: NodeJS.Timeout;
+        let timer: NodeJS.Timeout | null = null;
 
         if (phase === 'flash') {
-            // Flash Phase: Show grid for 5 seconds
             timer = setTimeout(() => {
                 setPhase('blackout');
                 setCurrentCommandIdx(0);
-                setShowCommandText(false); // Start hidden to trigger effect
+                setShowCommandText(false);
             }, 5000);
-        } 
-        else if (phase === 'blackout') {
+        } else if (phase === 'blackout') {
             if (currentCommandIdx < commandList.length) {
-                // Sequence: 
-                // 1. Brief pause/loading state (500ms) to clear previous command
-                // 2. Show command (4000ms)
-                
                 if (!showCommandText) {
-                    // We are in the "gap" between commands
                     timer = setTimeout(() => {
                         setShowCommandText(true);
                     }, 600);
                 } else {
-                    // We are displaying the command
                     timer = setTimeout(() => {
-                        setShowCommandText(false); // Hide text
-                        // Move to next command index (this triggers effect again)
-                        setCurrentCommandIdx(prev => prev + 1);
-                    }, 4000); 
+                        setShowCommandText(false);
+                        setTimeout(() => {
+                            setCurrentCommandIdx(prev => prev + 1);
+                        }, 0);
+                    }, 4000);
                 }
             } else {
-                // All commands shown
-                setPhase('reconstruction');
+                setTimeout(() => {
+                    setPhase('reconstruction');
+                }, 0);
             }
         }
 
-        return () => clearTimeout(timer);
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
     }, [phase, currentCommandIdx, showCommandText, commandList.length]);
 
     // Handle User Input
