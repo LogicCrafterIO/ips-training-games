@@ -84,7 +84,9 @@ const applyCommand = (currentVoxels: Voxel[], cmd: Command): Voxel[] => {
         // Rotate 90 CW around Y axis
         // Formula: x' = 2 - z, z' = x
         nextVoxels.forEach(v => {
-            if (!v.active) return; // technically destroyed blocks rotate too, but functionally irrelevant
+            // FIX: Removed "if (!v.active) return;"
+            // We must rotate inactive voxels too, otherwise the "empty hole" 
+            // stays behind and masks the new block that rotates into this position.
             const oldX = v.x;
             const oldZ = v.z;
             v.x = 2 - oldZ;
@@ -163,7 +165,6 @@ export default function VoxelCarverPage() {
     const [showCommandText, setShowCommandText] = useState<boolean>(false);
     
     // User Input: A 3D map string -> string
-    // Key format: "z-y-x" (e.g. "0-0-0" is Front Top Left)
     const [userInputs, setUserInputs] = useState<Record<string, string>>({});
 
     const startGame = () => {
@@ -263,7 +264,7 @@ export default function VoxelCarverPage() {
 
     // --- SUBCOMPONENTS ---
 
-    // Slice Display (Read Only) - For Memorize & History
+    // Slice Display (Read Only)
     const SliceView = ({ voxels, zIndex, label, highlight = false }: { voxels: Voxel[], zIndex: number, label: string, highlight?: boolean }) => {
         const cells = Array.from({ length: 9 }); 
         return (
@@ -295,7 +296,7 @@ export default function VoxelCarverPage() {
         );
     };
 
-    // Input Slice (Editable) - For Question Phase
+    // Input Slice (Editable)
     const InputSlice = ({ zIndex, label }: { zIndex: number, label: string }) => {
         const cells = Array.from({ length: 9 });
         return (
