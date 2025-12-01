@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 // --- TYPES ---
 type Grid = number[][];
-type GamePhase = 'idle' | 'flash' | 'blackout' | 'reconstruction' | 'result';
+type GamePhase = 'idle' | 'solving' | 'result';
 
 type CommandType = 'ROTATE_CW' | 'SWAP' | 'SET_ROW';
 
@@ -12,7 +12,6 @@ interface Command {
     id: string;
     type: CommandType;
     description: string;
-    // Params vary based on type, used for internal logic
     params?: {
         r1?: number;
         c1?: number;
@@ -23,7 +22,6 @@ interface Command {
     };
 }
 
-// New Interface for tracking history
 interface HistoryStep {
     stepIndex: number;
     commandDescription: string;
@@ -33,20 +31,20 @@ interface HistoryStep {
 // --- HELPER FUNCTIONS ---
 
 const generateGrid = (): Grid => {
-    return Array.from({ length: 3 }, () => 
-        Array.from({ length: 3 }, () => Math.floor(Math.random() * 9) + 1)
-    );
+    return [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9]
+    ];
 };
 
 const deepCopyGrid = (grid: Grid): Grid => grid.map(row => [...row]);
 
-// Applies a single command to a grid and returns the new grid state
 const applyCommand = (grid: Grid, cmd: Command): Grid => {
     const newGrid = deepCopyGrid(grid);
     const N = 3;
 
     if (cmd.type === 'ROTATE_CW') {
-        // Rotate 90 degrees clockwise
         const rotated = Array.from({ length: N }, () => Array(N).fill(0));
         for (let r = 0; r < N; r++) {
             for (let c = 0; c < N; c++) {
@@ -70,7 +68,6 @@ const applyCommand = (grid: Grid, cmd: Command): Grid => {
     else if (cmd.type === 'SET_ROW') {
         const { row, val } = cmd.params ?? {};
         if (typeof row === 'number' && typeof val === 'number') {
-            // row comes in as 0-indexed from the generator
             for (let c = 0; c < N; c++) {
                 newGrid[row][c] = val;
             }
@@ -86,7 +83,8 @@ const generateRandomCommands = (count: number = 3): Command[] => {
     const types: CommandType[] = ['ROTATE_CW', 'SWAP', 'SET_ROW'];
 
     for (let i = 0; i < count; i++) {
-        const type = types[Math.floor(Math.random() * types.length)];
+        const rand = Math.random();
+        const type = rand < 0.5 ? 'ROTATE_CW' : (rand < 0.8 ? 'SWAP' : 'SET_ROW');
         
         if (type === 'ROTATE_CW') {
             commands.push({
@@ -130,34 +128,27 @@ const generateRandomCommands = (count: number = 3): Command[] => {
 const BlindGridPage: React.FC = () => {
     // Game State
     const [phase, setPhase] = useState<GamePhase>('idle');
-    const [originalGrid, setOriginalGrid] = useState<Grid>([]);
     const [expectedGrid, setExpectedGrid] = useState<Grid>([]);
     const [userGrid, setUserGrid] = useState<(string)[][]>([]);
     
-    // History State
+    // History & Commands
     const [gameHistory, setGameHistory] = useState<HistoryStep[]>([]);
-    
-    // Command Execution State
     const [commandList, setCommandList] = useState<Command[]>([]);
-    const [currentCommandIdx, setCurrentCommandIdx] = useState<number>(-1);
-    const [showCommandText, setShowCommandText] = useState<boolean>(false);
 
     // Start Game Logic
     const startGame = () => {
         const initial = generateGrid();
-        const cmds = generateRandomCommands(3); 
+        const cmds = generateRandomCommands(4); 
         
         const history: HistoryStep[] = [];
         let currentGridState = deepCopyGrid(initial);
 
-        // 1. Record Initial State
         history.push({
             stepIndex: 0,
-            commandDescription: "Start Configuration",
+            commandDescription: "Start Configuration (1-9)",
             gridState: deepCopyGrid(currentGridState)
         });
 
-        // 2. Process Commands and Record History
         cmds.forEach((cmd, idx) => {
             currentGridState = applyCommand(currentGridState, cmd);
             history.push({
@@ -167,54 +158,14 @@ const BlindGridPage: React.FC = () => {
             });
         });
 
-        setOriginalGrid(initial);
         setExpectedGrid(currentGridState);
         setCommandList(cmds);
         setGameHistory(history);
         
-        // Reset user input grid
         setUserGrid(Array.from({ length: 3 }, () => Array(3).fill('')));
-        
-        setPhase('flash');
+        setPhase('solving');
     };
 
-    // Phase Manager
-    useEffect(() => {
-        let timer: NodeJS.Timeout | null = null;
-
-        if (phase === 'flash') {
-            timer = setTimeout(() => {
-                setPhase('blackout');
-                setCurrentCommandIdx(0);
-                setShowCommandText(false);
-            }, 5000);
-        } else if (phase === 'blackout') {
-            if (currentCommandIdx < commandList.length) {
-                if (!showCommandText) {
-                    timer = setTimeout(() => {
-                        setShowCommandText(true);
-                    }, 600);
-                } else {
-                    timer = setTimeout(() => {
-                        setShowCommandText(false);
-                        setTimeout(() => {
-                            setCurrentCommandIdx(prev => prev + 1);
-                        }, 0);
-                    }, 4000);
-                }
-            } else {
-                setTimeout(() => {
-                    setPhase('reconstruction');
-                }, 0);
-            }
-        }
-
-        return () => {
-            if (timer) clearTimeout(timer);
-        };
-    }, [phase, currentCommandIdx, showCommandText, commandList.length]);
-
-    // Handle User Input
     const handleInputChange = (r: number, c: number, value: string) => {
         const newUserGrid = [...userGrid];
         if (value === '' || /^\d+$/.test(value)) {
@@ -223,17 +174,15 @@ const BlindGridPage: React.FC = () => {
         }
     };
 
-    // Check Results
+    // --- ADDED THIS FUNCTION BACK ---
     const checkResult = () => {
         setPhase('result');
     };
 
-    // Render Helpers
     const isCorrect = (r: number, c: number) => {
         return parseInt(userGrid[r][c]) === expectedGrid[r][c];
     };
 
-    // Helper to render a small non-interactive grid for history
     const MiniGrid = ({ grid, label }: { grid: Grid, label?: string }) => (
         <div className="flex flex-col items-center">
             {label && <span className="text-xs text-gray-500 mb-1">{label}</span>}
@@ -250,109 +199,105 @@ const BlindGridPage: React.FC = () => {
     );
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4 font-mono select-none">
+        <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4 font-mono select-none">
             
             {/* --- IDLE / INTRO PHASE --- */}
             {phase === 'idle' && (
                 <div className="text-center max-w-lg space-y-6">
-                    <h1 className="text-4xl font-bold text-green-400">The Blind Grid</h1>
-                    <div className="bg-gray-800 p-6 rounded-lg text-left space-y-4 border border-gray-700">
-                        <h2 className="text-xl font-bold text-yellow-400">Protocol: Matrix Tumbler</h2>
-                        <ul className="list-disc pl-5 space-y-2 text-gray-300">
-                            <li><strong>Flash Phase:</strong> Memorize the 3x3 grid (5 seconds).</li>
-                            <li><strong>Blackout Phase:</strong> Screen goes dark. Update your mental model based on text commands.</li>
-                            <li><strong>Reconstruction:</strong> The empty grid returns. Fill in the final numbers.</li>
+                    <h1 className="text-4xl font-bold text-green-500">The Blind Grid</h1>
+                    <div className="bg-gray-900 p-8 rounded-xl text-left space-y-6 border border-gray-800 shadow-2xl">
+                        <div className="space-y-2">
+                            <h2 className="text-xl font-bold text-blue-400">Protocol: Static Simulation</h2>
+                            <p className="text-gray-400 text-sm">
+                                This exercise isolates Spatial Manipulation (IPS) by removing Memory load (PFC).
+                            </p>
+                        </div>
+                        
+                        <div className="bg-gray-800 p-4 rounded-lg">
+                            <h3 className="text-sm font-bold text-gray-300 mb-2">Standard Grid Layout:</h3>
+                            <div className="flex justify-center">
+                                <MiniGrid grid={[[1,2,3],[4,5,6],[7,8,9]]} />
+                            </div>
+                        </div>
+
+                        <ul className="list-disc pl-5 space-y-2 text-gray-300 text-sm">
+                            <li>The grid <strong>ALWAYS</strong> starts as 1-9.</li>
+                            <li>Instructions are shown on the left.</li>
+                            <li>Visualize the steps and input the final result on the right.</li>
                         </ul>
                     </div>
                     <button 
                         onClick={startGame}
                         className="px-8 py-3 bg-green-600 hover:bg-green-500 rounded font-bold text-lg transition-colors shadow-[0_0_15px_rgba(22,163,74,0.5)]"
                     >
-                        Initialize Sequence
+                        Begin Simulation
                     </button>
                 </div>
             )}
 
-            {/* --- FLASH PHASE --- */}
-            {phase === 'flash' && (
-                <div className="text-center">
-                    <h2 className="text-2xl mb-6 text-blue-400 animate-pulse">MEMORIZE - 5s</h2>
-                    <div className="grid grid-cols-3 gap-2 bg-gray-800 p-4 rounded border-2 border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.3)]">
-                        {originalGrid.map((row, rIdx) => (
-                            row.map((num, cIdx) => (
-                                <div key={`${rIdx}-${cIdx}`} className="w-20 h-20 flex items-center justify-center text-3xl font-bold bg-gray-700 rounded text-white">
-                                    {num}
-                                </div>
-                            ))
-                        ))}
-                    </div>
-                </div>
-            )}
+            {/* --- SOLVING PHASE (Side-by-Side View) --- */}
+            {phase === 'solving' && (
+                <div className="w-full max-w-6xl flex flex-col md:flex-row gap-8 items-start justify-center animate-in fade-in zoom-in-95 duration-500">
+                    
+                    {/* LEFT PANEL: INSTRUCTIONS */}
+                    <div className="flex-1 w-full bg-gray-900 p-6 rounded-xl border border-gray-800 shadow-xl">
+                        <div className="flex items-center justify-between mb-6 border-b border-gray-700 pb-4">
+                            <h2 className="text-xl font-bold text-blue-400 uppercase tracking-widest">
+                                Operations
+                            </h2>
+                            <div className="text-xs text-gray-500">Apply Sequentially</div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            {/* Start State Indicator */}
+                            <div className="flex items-center gap-4 opacity-50 p-2 rounded bg-gray-800/30">
+                                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center font-bold text-sm">S</div>
+                                <p className="text-gray-400 font-bold">Start Position (1-9)</p>
+                            </div>
 
-            {/* --- BLACKOUT / COMMAND PHASE --- */}
-            {phase === 'blackout' && (
-                <div className="text-center w-full max-w-2xl flex flex-col items-center justify-center min-h-[400px]">
-                    {currentCommandIdx < commandList.length ? (
-                        <div className="w-full">
-                            <div className="flex justify-center gap-2 mb-12">
-                                {commandList.map((_, idx) => (
-                                    <div 
-                                        key={idx} 
-                                        className={`h-2 w-12 rounded-full transition-colors duration-300 ${
-                                            idx === currentCommandIdx ? 'bg-green-500' : 
-                                            idx < currentCommandIdx ? 'bg-gray-600' : 'bg-gray-800'
-                                        }`}
-                                    />
+                            {/* Command List */}
+                            {commandList.map((cmd, idx) => (
+                                <div key={cmd.id} className="flex items-center gap-4 p-3 rounded bg-gray-800 border border-gray-700">
+                                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold shadow-lg shadow-blue-900/50 shrink-0">
+                                        {idx + 1}
+                                    </div>
+                                    <p className="text-lg font-bold text-white">{cmd.description}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* RIGHT PANEL: INPUT */}
+                    <div className="flex-1 w-full bg-gray-900 p-6 rounded-xl border border-gray-800 shadow-xl flex flex-col items-center">
+                        <h2 className="text-xl font-bold text-yellow-400 mb-6 uppercase tracking-widest border-b border-gray-700 pb-4 w-full text-center">
+                            Result Matrix
+                        </h2>
+                        
+                        <div className="flex-grow flex items-center justify-center mb-8">
+                            <div className="grid grid-cols-3 gap-3 bg-gray-800 p-4 rounded border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.1)]">
+                                {userGrid.map((row, rIdx) => (
+                                    row.map((val, cIdx) => (
+                                        <input
+                                            key={`${rIdx}-${cIdx}`}
+                                            type="text"
+                                            maxLength={2}
+                                            value={val}
+                                            onChange={(e) => handleInputChange(rIdx, cIdx, e.target.value)}
+                                            placeholder="?"
+                                            className="w-20 h-20 text-center text-3xl font-bold bg-gray-700 text-white rounded border border-gray-600 focus:border-yellow-400 focus:bg-gray-600 focus:outline-none transition-all placeholder-gray-600"
+                                        />
+                                    ))
                                 ))}
                             </div>
-
-                            <div className="relative min-h-[120px] flex items-center justify-center">
-                                {showCommandText ? (
-                                    <div key={currentCommandIdx} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                        <h2 className="text-green-500 mb-2 text-sm uppercase tracking-[0.2em] font-bold">
-                                            Command {currentCommandIdx + 1}
-                                        </h2>
-                                        <div className="text-4xl md:text-5xl font-bold text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                                            {commandList[currentCommandIdx].description}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="text-gray-600 animate-pulse text-xl">
-                                        PROCESSING INCOMING TRANSMISSION...
-                                    </div>
-                                )}
-                            </div>
                         </div>
-                    ) : (
-                        <div className="text-gray-500 text-2xl">Initializing Reconstruction...</div>
-                    )}
-                </div>
-            )}
 
-            {/* --- RECONSTRUCTION PHASE --- */}
-            {phase === 'reconstruction' && (
-                <div className="text-center">
-                    <h2 className="text-2xl mb-6 text-yellow-400 font-bold tracking-wider">RECONSTRUCT MATRIX</h2>
-                    <div className="grid grid-cols-3 gap-2 bg-gray-800 p-4 rounded border-2 border-yellow-500 mb-8 shadow-[0_0_30px_rgba(234,179,8,0.2)]">
-                        {userGrid.map((row, rIdx) => (
-                            row.map((val, cIdx) => (
-                                <input
-                                    key={`${rIdx}-${cIdx}`}
-                                    type="text"
-                                    maxLength={2}
-                                    value={val}
-                                    onChange={(e) => handleInputChange(rIdx, cIdx, e.target.value)}
-                                    className="w-20 h-20 text-center text-3xl font-bold bg-gray-700 text-white rounded border border-gray-600 focus:border-yellow-400 focus:bg-gray-600 focus:outline-none transition-colors"
-                                />
-                            ))
-                        ))}
+                        <button 
+                            onClick={checkResult}
+                            className="w-full py-4 bg-yellow-600 hover:bg-yellow-500 rounded font-bold text-xl shadow-lg uppercase tracking-widest"
+                        >
+                            Verify Pattern
+                        </button>
                     </div>
-                    <button 
-                        onClick={checkResult}
-                        className="px-8 py-3 bg-yellow-600 hover:bg-yellow-500 rounded font-bold text-lg shadow-lg"
-                    >
-                        Submit Grid
-                    </button>
                 </div>
             )}
 
@@ -404,7 +349,6 @@ const BlindGridPage: React.FC = () => {
                                         key={step.stepIndex}
                                         className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex items-center justify-between gap-4 transition-colors hover:border-gray-500"
                                     >
-                                        {/* Left Info */}
                                         <div className="flex items-center gap-4">
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${isInitial ? 'bg-blue-600' : 'bg-green-600'}`}>
                                                 {isInitial ? 'S' : step.stepIndex}
@@ -418,8 +362,6 @@ const BlindGridPage: React.FC = () => {
                                                 </p>
                                             </div>
                                         </div>
-
-                                        {/* Right Mini Grid */}
                                         <div>
                                             <MiniGrid grid={step.gridState} />
                                         </div>
