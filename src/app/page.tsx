@@ -20,12 +20,12 @@ export default function Home() {
             className="group relative overflow-hidden rounded-lg bg-gray-800 p-8 border border-gray-700 hover:border-green-400 transition-all duration-300 hover:shadow-[0_0_20px_rgba(74,222,128,0.3)]"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-green-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10 space-y-4">
+            <div className="relative z-10 flex flex-col h-full">
               <h2 className="text-2xl font-bold text-green-400">Blind Grid</h2>
               <p className="text-gray-400 text-sm leading-relaxed">
                 Memorize a 3x3 grid, then reconstruct it after a series of transformations. Test your mental spatial reasoning.
               </p>
-              <div className="flex items-center justify-between pt-4">
+              <div className="flex items-center justify-between pt-4 mt-auto">
                 <span className="text-xs uppercase tracking-widest text-gray-500">
                   Launch Game →
                 </span>
@@ -40,12 +40,12 @@ export default function Home() {
             className="group relative overflow-hidden rounded-lg bg-gray-800 p-8 border border-gray-700 hover:border-cyan-400 transition-all duration-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.3)]"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10 space-y-4">
+            <div className="relative z-10 flex flex-col h-full">
               <h2 className="text-2xl font-bold text-cyan-400">Invisible Die</h2>
               <p className="text-gray-400 text-sm leading-relaxed">
                 Track the orientation of a die as it rolls and rotates in the darkness. Master 3D visualization.
               </p>
-              <div className="flex items-center justify-between pt-4">
+              <div className="flex items-center justify-between pt-4 mt-auto">
                 <span className="text-xs uppercase tracking-widest text-gray-500">
                   Launch Game →
                 </span>
@@ -60,12 +60,12 @@ export default function Home() {
             className="group relative overflow-hidden rounded-lg bg-gray-800 p-8 border border-gray-700 hover:border-yellow-400 transition-all duration-300 hover:shadow-[0_0_20px_rgba(250,204,21,0.3)]"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10 space-y-4">
+            <div className="relative z-10 flex flex-col h-full">
               <h2 className="text-2xl font-bold text-yellow-400">Voxel Carver</h2>
               <p className="text-gray-400 text-sm leading-relaxed">
                 Visualize a 3D cube being carved by laser cuts. Track which blocks remain after each transformation.
               </p>
-              <div className="flex items-center justify-between pt-4">
+              <div className="flex items-center justify-between pt-4 mt-auto">
                 <span className="text-xs uppercase tracking-widest text-gray-500">
                   Launch Game →
                 </span>
