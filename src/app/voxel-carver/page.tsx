@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 // --- TYPES ---
 
@@ -29,7 +29,7 @@ interface HistoryStep {
     voxelState: Voxel[];
 }
 
-type GamePhase = 'idle' | 'memorize' | 'running' | 'question' | 'result';
+type GamePhase = 'idle' | 'solving' | 'result';
 
 // --- LOGIC ---
 
@@ -84,9 +84,7 @@ const applyCommand = (currentVoxels: Voxel[], cmd: Command): Voxel[] => {
         // Rotate 90 CW around Y axis
         // Formula: x' = 2 - z, z' = x
         nextVoxels.forEach(v => {
-            // FIX: Removed "if (!v.active) return;"
-            // We must rotate inactive voxels too, otherwise the "empty hole" 
-            // stays behind and masks the new block that rotates into this position.
+            // FIX: We must rotate inactive voxels too.
             const oldX = v.x;
             const oldZ = v.z;
             v.x = 2 - oldZ;
@@ -159,10 +157,6 @@ export default function VoxelCarverPage() {
     
     // History
     const [history, setHistory] = useState<HistoryStep[]>([]);
-
-    // Execution
-    const [currentCommandIdx, setCurrentCommandIdx] = useState<number>(-1);
-    const [showCommandText, setShowCommandText] = useState<boolean>(false);
     
     // User Input: A 3D map string -> string
     const [userInputs, setUserInputs] = useState<Record<string, string>>({});
@@ -193,39 +187,8 @@ export default function VoxelCarverPage() {
         setCommandList(cmds);
         setHistory(hist);
         setUserInputs({});
-        setPhase('memorize');
+        setPhase('solving');
     };
-
-    // Phase Loop
-    useEffect(() => {
-        let timer: NodeJS.Timeout;
-
-        if (phase === 'memorize') {
-            timer = setTimeout(() => {
-                setPhase('running');
-                setCurrentCommandIdx(0);
-                setShowCommandText(false);
-            }, 6000); // 6s to memorize numbers
-        }
-        else if (phase === 'running') {
-            if (currentCommandIdx < commandList.length) {
-                if (!showCommandText) {
-                    timer = setTimeout(() => {
-                        setShowCommandText(true);
-                    }, 800);
-                } else {
-                    timer = setTimeout(() => {
-                        setShowCommandText(false);
-                        setCurrentCommandIdx(prev => prev + 1);
-                    }, 4000); 
-                }
-            } else {
-                setPhase('question');
-            }
-        }
-
-        return () => clearTimeout(timer);
-    }, [phase, currentCommandIdx, showCommandText, commandList.length]);
 
     // Handle Input Change for specific cell
     const handleCellInput = (z: number, y: number, x: number, val: string) => {
@@ -236,7 +199,6 @@ export default function VoxelCarverPage() {
         }));
     };
 
-    // Calculate Score
     const getResultStats = () => {
         let correct = 0;
         const total = 27;
@@ -244,13 +206,9 @@ export default function VoxelCarverPage() {
         for (let z = 0; z < 3; z++) {
             for (let y = 0; y < 3; y++) {
                 for (let x = 0; x < 3; x++) {
-                    // Find actual voxel at this coord
                     const actualVoxel = finalVoxels.find(v => v.x === x && v.y === y && v.z === z);
                     const actualVal = (actualVoxel && actualVoxel.active) ? actualVoxel.val.toString() : '';
-                    
-                    // Get user input (default to empty string)
                     const userVal = userInputs[`${z}-${y}-${x}`] || '';
-
                     if (actualVal === userVal) correct++;
                 }
             }
@@ -274,14 +232,12 @@ export default function VoxelCarverPage() {
                     {cells.map((_, i) => {
                         const row = Math.floor(i / 3);
                         const col = i % 3;
-                        // Find voxel at this position
                         const v = voxels.find(v => v.x === col && v.y === row && v.z === zIndex);
                         const isActive = v && v.active;
-                        
                         return (
                             <div 
                                 key={i} 
-                                className={`w-8 h-8 flex items-center justify-center text-xs font-bold rounded-sm border ${
+                                className={`w-6 h-6 flex items-center justify-center text-[10px] font-bold rounded-sm border ${
                                     isActive 
                                     ? 'bg-gray-800 text-white border-gray-600' 
                                     : 'bg-black text-transparent border-gray-900'
@@ -332,14 +288,11 @@ export default function VoxelCarverPage() {
                     {cells.map((_, i) => {
                         const row = Math.floor(i / 3);
                         const col = i % 3;
-                        
                         const actualVoxel = finalVoxels.find(v => v.x === col && v.y === row && v.z === zIndex);
                         const actualVal = (actualVoxel && actualVoxel.active) ? actualVoxel.val.toString() : '';
                         const userVal = userInputs[`${zIndex}-${row}-${col}`] || '';
-                        
                         const isMatch = actualVal === userVal;
                         
-                        // Styling based on correctness
                         let bg = 'bg-gray-900';
                         let border = 'border-gray-800';
                         let text = 'text-gray-500';
@@ -377,12 +330,12 @@ export default function VoxelCarverPage() {
                 <div className="text-center max-w-lg space-y-6 animate-in fade-in zoom-in duration-500">
                     <h1 className="text-5xl font-bold text-red-500 tracking-tighter">VOXEL CARVER II</h1>
                     <div className="bg-gray-900 p-6 rounded-lg text-left space-y-4 border border-red-900/50 shadow-2xl">
-                        <h2 className="text-xl font-bold text-red-400 uppercase tracking-widest">Protocol: Numeric Tracking</h2>
+                        <h2 className="text-xl font-bold text-red-400 uppercase tracking-widest">Protocol: Static Simulation</h2>
                         <ul className="list-disc pl-5 space-y-2 text-gray-400 text-sm">
                             <li><strong>Setup:</strong> A 3x3x3 Cube containing numbers 1-27.</li>
-                            <li><strong>Lasers:</strong> Destroy rows/cols.</li>
-                            <li><strong>Rotation:</strong> Moves the numbers within the cube.</li>
-                            <li><strong>Objective:</strong> Reconstruct the entire grid (Front, Mid, Back).</li>
+                            <li><strong>Left Panel:</strong> Shows the initial state and all commands.</li>
+                            <li><strong>Right Panel:</strong> Enter the final number configuration.</li>
+                            <li><strong>Goal:</strong> Focus on Spatial Manipulation (IPS) without Memory pressure.</li>
                         </ul>
                     </div>
                     <button 
@@ -394,78 +347,71 @@ export default function VoxelCarverPage() {
                 </div>
             )}
 
-            {/* --- MEMORIZE --- */}
-            {phase === 'memorize' && (
-                <div className="text-center animate-in fade-in duration-500">
-                    <h2 className="text-2xl mb-2 text-blue-400 font-bold uppercase tracking-[0.3em] animate-pulse">Memorize Layout</h2>
-                    <p className="text-gray-500 mb-8 text-sm">Cube initialized. Numbers 1-27.</p>
+            {/* --- SOLVING PHASE --- */}
+            {phase === 'solving' && (
+                <div className="w-full max-w-7xl flex flex-col lg:flex-row gap-6 animate-in fade-in zoom-in-95 duration-500">
                     
-                    <div className="flex flex-wrap justify-center gap-6">
-                        {/* We use the history[0] to show initial state */}
-                        {history.length > 0 && (
-                            <>
-                                <SliceView voxels={history[0].voxelState} zIndex={0} label="Front (1-9)" highlight />
-                                <SliceView voxels={history[0].voxelState} zIndex={1} label="Mid (10-18)" highlight />
-                                <SliceView voxels={history[0].voxelState} zIndex={2} label="Back (19-27)" highlight />
-                            </>
-                        )}
-                    </div>
-                </div>
-            )}
+                    {/* LEFT: COMMANDS & START STATE */}
+                    <div className="flex-1 bg-gray-900 p-6 rounded-xl border border-gray-800 shadow-xl overflow-y-auto max-h-[85vh]">
+                        <div className="flex items-center justify-between mb-6 border-b border-gray-700 pb-4">
+                            <h2 className="text-xl font-bold text-blue-400 uppercase tracking-widest">Operations</h2>
+                            <div className="text-xs text-gray-500">Read Top-Down</div>
+                        </div>
 
-            {/* --- RUNNING --- */}
-            {phase === 'running' && (
-                <div className="text-center w-full max-w-3xl">
-                    <div className="flex justify-center gap-2 mb-16">
-                        {commandList.map((_, idx) => (
-                            <div 
-                                key={idx} 
-                                className={`h-1 w-16 transition-colors duration-300 ${
-                                    idx === currentCommandIdx ? 'bg-red-500 shadow-[0_0_10px_red]' : 
-                                    idx < currentCommandIdx ? 'bg-gray-700' : 'bg-gray-900'
-                                }`}
-                            />
-                        ))}
-                    </div>
-
-                    <div className="min-h-[200px] flex items-center justify-center relative">
-                        {showCommandText && currentCommandIdx < commandList.length ? (
-                            <div key={currentCommandIdx} className="animate-in zoom-in-95 fade-in duration-300">
-                                <h3 className="text-red-500 text-xs uppercase tracking-[0.3em] mb-6 font-bold">
-                                    Sequence {currentCommandIdx + 1}
-                                </h3>
-                                <div className="text-4xl md:text-5xl font-bold text-white leading-tight max-w-2xl drop-shadow-[0_4px_4px_rgba(0,0,0,1)]">
-                                    {commandList[currentCommandIdx].description}
+                        <div className="space-y-6">
+                            {/* Start State */}
+                            <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center font-bold text-xs">S</div>
+                                    <h3 className="text-sm font-bold text-gray-300 uppercase">Start Configuration</h3>
+                                </div>
+                                <div className="flex justify-center gap-4">
+                                    {history.length > 0 && (
+                                        <>
+                                            <SliceView voxels={history[0].voxelState} zIndex={0} label="Front" highlight />
+                                            <SliceView voxels={history[0].voxelState} zIndex={1} label="Mid" highlight />
+                                            <SliceView voxels={history[0].voxelState} zIndex={2} label="Back" highlight />
+                                        </>
+                                    )}
                                 </div>
                             </div>
-                        ) : (
-                            <div className="flex flex-col items-center gap-4">
-                                <div className="w-12 h-12 border-4 border-t-red-500 border-gray-800 rounded-full animate-spin"></div>
-                                <span className="text-red-900 font-mono text-xl animate-pulse">PROCESSING GEOMETRY...</span>
+
+                            {/* Commands */}
+                            <div className="space-y-3">
+                                {commandList.map((cmd, idx) => (
+                                    <div key={cmd.id} className="flex items-center gap-4 p-4 rounded bg-gray-800 border border-gray-700">
+                                        <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center font-bold shadow-lg shadow-red-900/50 shrink-0">
+                                            {idx + 1}
+                                        </div>
+                                        <p className="text-lg font-bold text-white">{cmd.description}</p>
+                                    </div>
+                                ))}
                             </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* --- QUESTION --- */}
-            {phase === 'question' && (
-                <div className="text-center w-full max-w-4xl animate-in slide-in-from-bottom-8 duration-500">
-                    <h2 className="text-3xl font-bold mb-4 text-white">Reconstruct Cube</h2>
-                    <p className="text-gray-400 mb-8">Enter remaining numbers. Leave destroyed cells empty.</p>
-                    
-                    <div className="flex flex-col md:flex-row justify-center gap-8 mb-10">
-                        <InputSlice zIndex={0} label="Front Slice" />
-                        <InputSlice zIndex={1} label="Mid Slice" />
-                        <InputSlice zIndex={2} label="Back Slice" />
+                        </div>
                     </div>
 
-                    <button 
-                        onClick={handleSubmit}
-                        className="px-12 py-4 bg-white text-black hover:bg-gray-200 rounded font-bold text-xl uppercase tracking-widest transition-colors shadow-lg"
-                    >
-                        Verify Integrity
-                    </button>
+                    {/* RIGHT: INPUT */}
+                    <div className="flex-1 bg-gray-900 p-6 rounded-xl border border-gray-800 shadow-xl flex flex-col">
+                        <h2 className="text-xl font-bold text-white mb-6 uppercase tracking-widest border-b border-gray-700 pb-4 text-center">
+                            Reconstruct Cube
+                        </h2>
+                        
+                        <div className="flex-grow flex flex-col justify-center gap-8 mb-8">
+                            <p className="text-center text-gray-400 text-sm">Enter the remaining numbers. Leave destroyed cells empty.</p>
+                            <div className="flex flex-col xl:flex-row justify-center items-center gap-8">
+                                <InputSlice zIndex={0} label="Front Slice" />
+                                <InputSlice zIndex={1} label="Mid Slice" />
+                                <InputSlice zIndex={2} label="Back Slice" />
+                            </div>
+                        </div>
+
+                        <button 
+                            onClick={handleSubmit}
+                            className="w-full py-4 bg-white text-black hover:bg-gray-200 rounded font-bold text-xl uppercase tracking-widest transition-colors shadow-lg"
+                        >
+                            Verify Integrity
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -513,7 +459,6 @@ export default function VoxelCarverPage() {
                                     key={step.stepIndex}
                                     className="bg-gray-900/50 p-6 rounded-lg border border-gray-800 flex flex-col xl:flex-row items-center gap-6 hover:border-gray-700 transition-colors"
                                 >
-                                    {/* Text Info */}
                                     <div className="xl:w-48 text-center xl:text-left shrink-0">
                                         <div className="flex items-center justify-center xl:justify-start gap-3 mb-2">
                                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${isInitial ? 'bg-blue-600' : 'bg-red-600'}`}>
@@ -526,7 +471,6 @@ export default function VoxelCarverPage() {
                                         <h4 className="text-sm font-bold text-white mb-1">{step.commandDescription}</h4>
                                     </div>
 
-                                    {/* Visual Representation */}
                                     <div className="flex flex-wrap justify-center gap-4 p-2 bg-black/40 rounded-lg border border-gray-800">
                                         <SliceView voxels={step.voxelState} zIndex={0} label="Front" />
                                         <SliceView voxels={step.voxelState} zIndex={1} label="Mid" />
