@@ -49,6 +49,26 @@ const INITIAL_DIE: DieState = {
     left: 4
 };
 
+// Generate randomized face labels (6 unique numbers chosen from 1..9)
+const generateRandomFaces = (): DieState => {
+    const pool = Array.from({ length: 9 }, (_, i) => i + 1); // 1..9
+    // Fisher-Yates shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    // Pick first 6 unique numbers
+    const picks = pool.slice(0, 6);
+    return {
+        top: picks[0],
+        bottom: picks[1],
+        front: picks[2],
+        back: picks[3],
+        right: picks[4],
+        left: picks[5]
+    };
+};
+
 // Pure function to calculate new die state based on rotation
 const applyDieCommand = (current: DieState, cmd: CommandType): DieState => {
     const next = { ...current };
@@ -127,12 +147,32 @@ const getRandomFaceToCheck = (): DieFace => {
     return faces[Math.floor(Math.random() * faces.length)];
 };
 
+// Mini-grid visualization of the die state (declare at top-level)
+const MiniDieMap = ({ state }: { state: DieState }) => (
+    <div className="grid grid-cols-3 grid-rows-4 gap-1 w-20 text-[10px] text-black font-bold leading-none">
+        {/* Row 1: Top */}
+        <div className="col-start-2 bg-gray-300 rounded flex items-center justify-center h-6">{state.top}</div>
+        
+        {/* Row 2: Left, Front, Right */}
+        <div className="row-start-2 col-start-1 bg-gray-300 rounded flex items-center justify-center h-6">{state.left}</div>
+        <div className="row-start-2 col-start-2 bg-blue-200 rounded flex items-center justify-center h-6 border border-blue-400">{state.front}</div>
+        <div className="row-start-2 col-start-3 bg-gray-300 rounded flex items-center justify-center h-6">{state.right}</div>
+        
+        {/* Row 3: Bottom */}
+        <div className="row-start-3 col-start-2 bg-gray-300 rounded flex items-center justify-center h-6">{state.bottom}</div>
+        
+        {/* Row 4: Back */}
+        <div className="row-start-4 col-start-2 bg-gray-300 rounded flex items-center justify-center h-6">{state.back}</div>
+    </div>
+);
+
 // --- COMPONENT ---
 
 const InvisibleDiePage: React.FC = () => {
     // Game State
     const [phase, setPhase] = useState<GamePhase>('idle');
     const [commandList, setCommandList] = useState<Command[]>([]);
+    const [initialState, setInitialState] = useState<DieState>(INITIAL_DIE);
     const [finalState, setFinalState] = useState<DieState>(INITIAL_DIE);
     const [targetFace, setTargetFace] = useState<DieFace>('top');
     
@@ -146,7 +186,11 @@ const InvisibleDiePage: React.FC = () => {
         const cmds = generateCommands(5); 
         
         const history: HistoryStep[] = [];
-        let currentState = { ...INITIAL_DIE };
+        const randStart = generateRandomFaces();
+        let currentState = { ...randStart };
+
+        // store randomized start so UI can show it during solving
+        setInitialState({ ...randStart });
 
         // 1. Record Initial State
         history.push({
@@ -178,25 +222,7 @@ const InvisibleDiePage: React.FC = () => {
     };
 
     // --- SUB-COMPONENTS FOR VISUALS ---
-
-    // A mini-grid visualization of the die state
-    const MiniDieMap = ({ state }: { state: DieState }) => (
-        <div className="grid grid-cols-3 grid-rows-4 gap-1 w-20 text-[10px] text-black font-bold leading-none">
-            {/* Row 1: Top */}
-            <div className="col-start-2 bg-gray-300 rounded flex items-center justify-center h-6">{state.top}</div>
-            
-            {/* Row 2: Left, Front, Right */}
-            <div className="row-start-2 col-start-1 bg-gray-300 rounded flex items-center justify-center h-6">{state.left}</div>
-            <div className="row-start-2 col-start-2 bg-blue-200 rounded flex items-center justify-center h-6 border border-blue-400">{state.front}</div>
-            <div className="row-start-2 col-start-3 bg-gray-300 rounded flex items-center justify-center h-6">{state.right}</div>
-            
-            {/* Row 3: Bottom */}
-            <div className="row-start-3 col-start-2 bg-gray-300 rounded flex items-center justify-center h-6">{state.bottom}</div>
-            
-            {/* Row 4: Back */}
-            <div className="row-start-4 col-start-2 bg-gray-300 rounded flex items-center justify-center h-6">{state.back}</div>
-        </div>
-    );
+    
 
     return (
         <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4 font-mono select-none">
@@ -251,12 +277,16 @@ const InvisibleDiePage: React.FC = () => {
                         </div>
 
                         <div className="space-y-4">
-                            {/* Start State Indicator */}
-                            <div className="flex items-center gap-4 opacity-50 p-2 rounded bg-gray-800/30 border border-gray-700">
-                                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center font-bold text-sm">S</div>
+                            {/* Start State Indicator (shows randomized start) */}
+                            <div className="flex items-center gap-4 opacity-90 p-2 rounded bg-gray-800/30 border border-gray-700">
+                                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-sm">S</div>
                                 <div>
-                                    <p className="text-gray-400 font-bold text-sm">Start Position</p>
-                                    <p className="text-xs text-gray-500">Top: 1, Front: 2, Right: 3</p>
+                                    <p className="text-gray-200 font-bold text-sm">Start Position</p>
+                                    <p className="text-xs text-gray-400">Top: <span className="font-bold text-white">{initialState.top}</span>, Front: <span className="font-bold text-white">{initialState.front}</span>, Right: <span className="font-bold text-white">{initialState.right}</span></p>
+                                    <p className="text-xs text-gray-400">Bottom: <span className="font-bold text-white">{initialState.bottom}</span>, Back: <span className="font-bold text-white">{initialState.back}</span>, Left: <span className="font-bold text-white">{initialState.left}</span></p>
+                                </div>
+                                <div className="ml-auto hidden md:block">
+                                    <MiniDieMap state={initialState} />
                                 </div>
                             </div>
 
