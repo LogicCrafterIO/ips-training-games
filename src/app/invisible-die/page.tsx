@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 // --- TYPES ---
 
@@ -35,10 +35,11 @@ interface HistoryStep {
     resultState: DieState;
 }
 
-type GamePhase = 'idle' | 'memorize' | 'running' | 'question' | 'result';
+type GamePhase = 'idle' | 'solving' | 'result';
 
 // --- LOGIC ---
 
+// Standard Dice Configuration: Opposite sides sum to 7
 const INITIAL_DIE: DieState = {
     top: 1,
     bottom: 6,
@@ -61,29 +62,24 @@ const applyDieCommand = (current: DieState, cmd: CommandType): DieState => {
             next.top = current.back;
             break;
         case 'ROLL_BACKWARD':
-            // Top -> Back, Back -> Bottom, Bottom -> Front, Front -> Top
             next.back = current.top;
             next.bottom = current.back;
             next.front = current.bottom;
             next.top = current.front;
             break;
         case 'ROLL_RIGHT':
-            // Top -> Right, Right -> Bottom, Bottom -> Left, Left -> Top
             next.right = current.top;
             next.bottom = current.right;
             next.left = current.bottom;
             next.top = current.left;
             break;
         case 'ROLL_LEFT':
-            // Top -> Left, Left -> Bottom, Bottom -> Right, Right -> Top
             next.left = current.top;
             next.bottom = current.left;
             next.right = current.bottom;
             next.top = current.right;
             break;
         case 'ROTATE_CW':
-            // Spin around vertical axis (Top/Bottom fixed)
-            // Front -> Right -> Back -> Left -> Front
             next.right = current.front;
             next.back = current.right;
             next.left = current.back;
@@ -143,10 +139,6 @@ const InvisibleDiePage: React.FC = () => {
     // History State (For the audit trail)
     const [gameHistory, setGameHistory] = useState<HistoryStep[]>([]);
     
-    // Execution State
-    const [currentCommandIdx, setCurrentCommandIdx] = useState<number>(-1);
-    const [showCommandText, setShowCommandText] = useState<boolean>(false);
-    
     // User Input
     const [userAnswer, setUserAnswer] = useState<string>('');
 
@@ -178,41 +170,8 @@ const InvisibleDiePage: React.FC = () => {
         setGameHistory(history);
         setTargetFace(getRandomFaceToCheck());
         setUserAnswer('');
-        setPhase('memorize');
+        setPhase('solving');
     };
-
-    // Phase Management
-    useEffect(() => {
-        let timer: NodeJS.Timeout;
-
-        if (phase === 'memorize') {
-            timer = setTimeout(() => {
-                setPhase('running');
-                setCurrentCommandIdx(0);
-                setShowCommandText(false);
-            }, 5000);
-        }
-        else if (phase === 'running') {
-            if (currentCommandIdx < commandList.length) {
-                if (!showCommandText) {
-                    // Gap
-                    timer = setTimeout(() => {
-                        setShowCommandText(true);
-                    }, 800); 
-                } else {
-                    // Show Command
-                    timer = setTimeout(() => {
-                        setShowCommandText(false);
-                        setCurrentCommandIdx(prev => prev + 1);
-                    }, 3500); 
-                }
-            } else {
-                setPhase('question');
-            }
-        }
-
-        return () => clearTimeout(timer);
-    }, [phase, currentCommandIdx, showCommandText, commandList.length]);
 
     const handleSubmit = () => {
         setPhase('result');
@@ -246,11 +205,14 @@ const InvisibleDiePage: React.FC = () => {
             {phase === 'idle' && (
                 <div className="text-center max-w-lg space-y-6 animate-in fade-in zoom-in duration-500">
                     <h1 className="text-4xl font-bold text-purple-400">The Invisible Die</h1>
-                    <div className="bg-gray-800 p-6 rounded-lg text-left space-y-4 border border-gray-700">
-                        <h2 className="text-xl font-bold text-pink-400">Protocol: 3D Spatial Rotation</h2>
-                        <p className="text-gray-300">
-                            A standard die starts at a known position. Commands will rotate it in 3D space. Track the orientation.
-                        </p>
+                    <div className="bg-gray-800 p-8 rounded-lg text-left space-y-6 border border-gray-700 shadow-2xl">
+                        <div className="space-y-2">
+                            <h2 className="text-xl font-bold text-pink-400">Protocol: Static Simulation</h2>
+                            <p className="text-gray-400 text-sm">
+                                Standard Die Configuration. Opposite sides sum to 7.
+                            </p>
+                        </div>
+                        
                         <div className="grid grid-cols-2 gap-4 text-sm bg-gray-900 p-4 rounded border border-gray-600">
                             <div>TOP: <strong>1</strong></div>
                             <div>BOTTOM: <strong>6</strong></div>
@@ -259,92 +221,86 @@ const InvisibleDiePage: React.FC = () => {
                             <div>LEFT: <strong>4</strong></div>
                             <div>RIGHT: <strong>3</strong></div>
                         </div>
+
+                        <ul className="list-disc pl-5 space-y-2 text-gray-300 text-sm">
+                            <li>Start from the standard position shown above.</li>
+                            <li>Follow the rotation commands on the left.</li>
+                            <li>Determine the final orientation of the target face.</li>
+                        </ul>
                     </div>
                     <button 
                         onClick={startGame}
                         className="px-8 py-3 bg-purple-600 hover:bg-purple-500 rounded font-bold text-lg shadow-[0_0_15px_rgba(147,51,234,0.5)] transition-all"
                     >
-                        Initialize Simulation
+                        Begin Simulation
                     </button>
                 </div>
             )}
 
-            {/* --- MEMORIZE PHASE --- */}
-            {phase === 'memorize' && (
-                <div className="text-center animate-pulse">
-                    <h2 className="text-2xl mb-8 text-blue-400">VISUALIZE STARTING POSITION</h2>
-                    <div className="relative w-64 h-64 mx-auto perspective-1000">
-                        {/* Large Die Map */}
-                        <div className="grid grid-cols-3 grid-rows-4 gap-2 text-black font-bold text-xl">
-                            <div className="col-start-2 bg-gray-200 rounded flex items-center justify-center border-2 border-gray-400">1 (Top)</div>
-                            <div className="row-start-2 col-start-1 bg-gray-200 rounded flex items-center justify-center border-2 border-gray-400">4 (L)</div>
-                            <div className="row-start-2 col-start-2 bg-blue-300 rounded flex items-center justify-center border-4 border-blue-500">2 (Front)</div>
-                            <div className="row-start-2 col-start-3 bg-gray-200 rounded flex items-center justify-center border-2 border-gray-400">3 (R)</div>
-                            <div className="row-start-3 col-start-2 bg-gray-200 rounded flex items-center justify-center border-2 border-gray-400">6 (Bot)</div>
-                            <div className="row-start-4 col-start-2 bg-gray-200 rounded flex items-center justify-center border-2 border-gray-400">5 (Back)</div>
+            {/* --- SOLVING PHASE --- */}
+            {phase === 'solving' && (
+                <div className="w-full max-w-6xl flex flex-col md:flex-row gap-8 items-start justify-center animate-in fade-in zoom-in-95 duration-500">
+                    
+                    {/* LEFT: INSTRUCTIONS */}
+                    <div className="flex-1 w-full bg-gray-900 p-6 rounded-xl border border-gray-800 shadow-xl">
+                        <div className="flex items-center justify-between mb-6 border-b border-gray-700 pb-4">
+                            <h2 className="text-xl font-bold text-pink-400 uppercase tracking-widest">
+                                Operations
+                            </h2>
+                            <div className="text-xs text-gray-500">Apply Sequentially</div>
                         </div>
-                    </div>
-                </div>
-            )}
 
-            {/* --- RUNNING PHASE --- */}
-            {phase === 'running' && (
-                <div className="text-center w-full max-w-2xl">
-                    <div className="flex justify-center gap-2 mb-12">
-                        {commandList.map((_, idx) => (
-                            <div 
-                                key={idx} 
-                                className={`h-2 w-12 rounded-full transition-colors duration-300 ${
-                                    idx === currentCommandIdx ? 'bg-purple-500' : 
-                                    idx < currentCommandIdx ? 'bg-gray-600' : 'bg-gray-800'
-                                }`}
-                            />
-                        ))}
-                    </div>
-
-                    <div className="min-h-[200px] flex items-center justify-center">
-                        {showCommandText && currentCommandIdx < commandList.length ? (
-                            <div key={currentCommandIdx} className="animate-in slide-in-from-right-8 fade-in duration-300">
-                                <h3 className="text-purple-400 text-sm uppercase tracking-widest mb-4 font-bold">Action {currentCommandIdx + 1}</h3>
-                                <div className="text-5xl md:text-6xl font-black text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">
-                                    {commandList[currentCommandIdx].description}
+                        <div className="space-y-4">
+                            {/* Start State Indicator */}
+                            <div className="flex items-center gap-4 opacity-50 p-2 rounded bg-gray-800/30 border border-gray-700">
+                                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center font-bold text-sm">S</div>
+                                <div>
+                                    <p className="text-gray-400 font-bold text-sm">Start Position</p>
+                                    <p className="text-xs text-gray-500">Top: 1, Front: 2, Right: 3</p>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="text-gray-500 text-xl font-mono animate-pulse">
-                                {currentCommandIdx >= commandList.length ? "CALCULATING..." : "PROCESSING ORIENTATION..."}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
 
-            {/* --- QUESTION PHASE --- */}
-            {phase === 'question' && (
-                <div className="text-center max-w-md animate-in zoom-in duration-300">
-                    <h2 className="text-3xl font-bold mb-8">Status Check</h2>
-                    
-                    <div className="bg-gray-800 p-8 rounded-xl border border-gray-600 shadow-2xl">
-                        <p className="text-gray-400 text-lg mb-4">What number is currently on the:</p>
-                        <h3 className="text-4xl font-black text-purple-400 uppercase mb-8 tracking-wider border-b-2 border-purple-500 inline-block pb-2">
-                            {targetFace}
-                        </h3>
-                        
-                        <div className="flex justify-center gap-4">
-                            <input 
-                                type="number" 
-                                autoFocus
-                                value={userAnswer}
-                                onChange={(e) => setUserAnswer(e.target.value)}
-                                className="w-24 h-24 bg-gray-700 text-white text-5xl font-bold text-center rounded border-2 border-gray-500 focus:border-purple-500 focus:outline-none"
-                            />
+                            {/* Command List */}
+                            {commandList.map((cmd, idx) => (
+                                <div key={cmd.id} className="flex items-center gap-4 p-3 rounded bg-gray-800 border border-gray-700">
+                                    <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold shadow-lg shadow-purple-900/50 shrink-0">
+                                        {idx + 1}
+                                    </div>
+                                    <p className="text-lg font-bold text-white">{cmd.description}</p>
+                                </div>
+                            ))}
                         </div>
+                    </div>
+
+                    {/* RIGHT: QUESTION */}
+                    <div className="flex-1 w-full bg-gray-900 p-6 rounded-xl border border-gray-800 shadow-xl flex flex-col items-center justify-center min-h-[400px]">
+                        <h2 className="text-xl font-bold text-white mb-8 uppercase tracking-widest border-b border-gray-700 pb-4 w-full text-center">
+                            Status Check
+                        </h2>
                         
+                        <div className="text-center space-y-6">
+                            <p className="text-gray-400 text-lg">What number is currently on the:</p>
+                            <h3 className="text-5xl font-black text-purple-400 uppercase tracking-wider">
+                                {targetFace}
+                            </h3>
+                            
+                            <div className="flex justify-center">
+                                <input 
+                                    type="number" 
+                                    autoFocus
+                                    value={userAnswer}
+                                    onChange={(e) => setUserAnswer(e.target.value)}
+                                    placeholder="?"
+                                    className="w-32 h-32 bg-gray-800 text-white text-6xl font-bold text-center rounded-xl border-2 border-gray-600 focus:border-purple-500 focus:bg-gray-700 focus:outline-none transition-all placeholder-gray-600"
+                                />
+                            </div>
+                        </div>
+
                         <button 
                             onClick={handleSubmit}
-                            className="mt-8 w-full py-4 bg-purple-600 hover:bg-purple-500 rounded font-bold text-xl transition-colors"
+                            className="mt-12 w-full py-4 bg-purple-600 hover:bg-purple-500 rounded font-bold text-xl shadow-lg uppercase tracking-widest transition-colors"
                         >
-                            Verify
+                            Verify Orientation
                         </button>
                     </div>
                 </div>
@@ -352,9 +308,9 @@ const InvisibleDiePage: React.FC = () => {
 
             {/* --- RESULT PHASE --- */}
             {phase === 'result' && (
-                <div className="text-center w-full max-w-4xl px-4 pb-20">
+                <div className="text-center w-full max-w-4xl px-4 pb-20 animate-in fade-in duration-700">
                     {/* Header Section */}
-                    <div className="mb-10 animate-in slide-in-from-top-4 duration-500">
+                    <div className="mb-10">
                         <div className="flex items-center justify-center gap-4 mb-4">
                             {parseInt(userAnswer) === finalState[targetFace] ? (
                                 <div className="text-6xl">✅</div>
@@ -384,10 +340,7 @@ const InvisibleDiePage: React.FC = () => {
                     
                     <div className="space-y-3">
                         {gameHistory.map((step) => {
-                            // Determine if this step matches the user's focus (visual aid)
-                            // We don't know exactly what face they were tracking, but we can show all.
                             const isInitial = step.stepIndex === 0;
-                            
                             return (
                                 <div 
                                     key={step.stepIndex}
