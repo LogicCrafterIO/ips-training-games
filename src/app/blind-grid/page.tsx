@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 type Grid = number[][];
 type GamePhase = 'idle' | 'solving' | 'result';
 
-type CommandType = 'ROTATE_CW' | 'SWAP' | 'SET_ROW';
+type CommandType = 'ROTATE_CW' | 'SWAP' | 'FLIP_H'; // Replaced SET_ROW with FLIP_H for better spatial work
 
 interface Command {
     id: string;
@@ -17,8 +17,6 @@ interface Command {
         c1?: number;
         r2?: number;
         c2?: number;
-        row?: number;
-        val?: number;
     };
 }
 
@@ -30,11 +28,20 @@ interface HistoryStep {
 
 // --- HELPER FUNCTIONS ---
 
-const generateGrid = (): Grid => {
+// RANDOM 1-9 GENERATOR (No duplicates)
+const generateRandomGrid = (): Grid => {
+    const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    // Fisher-Yates Shuffle
+    for (let i = nums.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [nums[i], nums[j]] = [nums[j], nums[i]];
+    }
+    
+    // Chunk into 3x3
     return [
-        [1, 2, 3],
-        [4, 5, 6],
-        [7, 8, 9]
+        [nums[0], nums[1], nums[2]],
+        [nums[3], nums[4], nums[5]],
+        [nums[6], nums[7], nums[8]]
     ];
 };
 
@@ -53,6 +60,10 @@ const applyCommand = (grid: Grid, cmd: Command): Grid => {
         }
         return rotated;
     } 
+    else if (cmd.type === 'FLIP_H') {
+        // Horizontal Mirror (Flip Left/Right)
+        return newGrid.map(row => row.reverse());
+    }
     else if (cmd.type === 'SWAP') {
         const { r1, c1, r2, c2 } = cmd.params ?? {};
         if (
@@ -65,26 +76,19 @@ const applyCommand = (grid: Grid, cmd: Command): Grid => {
         }
         return newGrid;
     } 
-    else if (cmd.type === 'SET_ROW') {
-        const { row, val } = cmd.params ?? {};
-        if (typeof row === 'number' && typeof val === 'number') {
-            for (let c = 0; c < N; c++) {
-                newGrid[row][c] = val;
-            }
-        }
-        return newGrid;
-    }
 
     return newGrid;
 };
 
 const generateRandomCommands = (count: number = 3): Command[] => {
     const commands: Command[] = [];
-    const types: CommandType[] = ['ROTATE_CW', 'SWAP', 'SET_ROW'];
+    const types: CommandType[] = ['ROTATE_CW', 'SWAP', 'FLIP_H'];
 
     for (let i = 0; i < count; i++) {
+        // High probability of rotation/flip for maximum IPS load
         const rand = Math.random();
-        const type = rand < 0.5 ? 'ROTATE_CW' : (rand < 0.8 ? 'SWAP' : 'SET_ROW');
+        // 40% Rotate, 30% Flip, 30% Swap
+        const type = rand < 0.4 ? 'ROTATE_CW' : (rand < 0.7 ? 'FLIP_H' : 'SWAP');
         
         if (type === 'ROTATE_CW') {
             commands.push({
@@ -92,7 +96,15 @@ const generateRandomCommands = (count: number = 3): Command[] => {
                 type: 'ROTATE_CW',
                 description: 'Rotate 90° Clockwise'
             });
-        } else if (type === 'SWAP') {
+        } 
+        else if (type === 'FLIP_H') {
+            commands.push({
+                id: crypto.randomUUID(),
+                type: 'FLIP_H',
+                description: 'Flip Horizontally (Mirror)'
+            });
+        }
+        else if (type === 'SWAP') {
             const r1 = Math.floor(Math.random() * 3);
             const c1 = Math.floor(Math.random() * 3);
             let r2 = Math.floor(Math.random() * 3);
@@ -108,17 +120,7 @@ const generateRandomCommands = (count: number = 3): Command[] => {
                 description: `Swap (${r1},${c1}) with (${r2},${c2})`,
                 params: { r1, c1, r2, c2 }
             });
-        } else if (type === 'SET_ROW') {
-            const rowIdx = Math.floor(Math.random() * 3); 
-            const val = 0; 
-            
-            commands.push({
-                id: crypto.randomUUID(),
-                type: 'SET_ROW',
-                description: `Set Row ${rowIdx + 1} to all Zeros`,
-                params: { row: rowIdx, val }
-            });
-        }
+        } 
     }
     return commands;
 };
@@ -134,10 +136,11 @@ const BlindGridPage: React.FC = () => {
     // History & Commands
     const [gameHistory, setGameHistory] = useState<HistoryStep[]>([]);
     const [commandList, setCommandList] = useState<Command[]>([]);
+    const [initialGrid, setInitialGrid] = useState<Grid>([]);
 
     // Start Game Logic
     const startGame = () => {
-        const initial = generateGrid();
+        const initial = generateRandomGrid();
         const cmds = generateRandomCommands(4); 
         
         const history: HistoryStep[] = [];
@@ -145,7 +148,7 @@ const BlindGridPage: React.FC = () => {
 
         history.push({
             stepIndex: 0,
-            commandDescription: "Start Configuration (1-9)",
+            commandDescription: "Start Configuration",
             gridState: deepCopyGrid(currentGridState)
         });
 
@@ -158,10 +161,12 @@ const BlindGridPage: React.FC = () => {
             });
         });
 
+        setInitialGrid(initial);
         setExpectedGrid(currentGridState);
         setCommandList(cmds);
         setGameHistory(history);
         
+        // Reset user input grid
         setUserGrid(Array.from({ length: 3 }, () => Array(3).fill('')));
         setPhase('solving');
     };
@@ -174,7 +179,6 @@ const BlindGridPage: React.FC = () => {
         }
     };
 
-    // --- ADDED THIS FUNCTION BACK ---
     const checkResult = () => {
         setPhase('result');
     };
@@ -209,21 +213,23 @@ const BlindGridPage: React.FC = () => {
                         <div className="space-y-2">
                             <h2 className="text-xl font-bold text-blue-400">Protocol: Static Simulation</h2>
                             <p className="text-gray-400 text-sm">
-                                This exercise isolates Spatial Manipulation (IPS) by removing Memory load (PFC).
+                                Random numbers prevent pattern memorization. Focus on coordinate tracking.
                             </p>
                         </div>
                         
                         <div className="bg-gray-800 p-4 rounded-lg">
-                            <h3 className="text-sm font-bold text-gray-300 mb-2">Standard Grid Layout:</h3>
+                            <h3 className="text-sm font-bold text-gray-300 mb-2">Example Grid (Randomized):</h3>
                             <div className="flex justify-center">
-                                <MiniGrid grid={[[1,2,3],[4,5,6],[7,8,9]]} />
+                                {/* Just a visual example, not the actual game grid yet */}
+                                <MiniGrid grid={[[5,9,2],[1,8,4],[3,7,6]]} />
                             </div>
                         </div>
 
                         <ul className="list-disc pl-5 space-y-2 text-gray-300 text-sm">
-                            <li>The grid <strong>ALWAYS</strong> starts as 1-9.</li>
-                            <li>Instructions are shown on the left.</li>
-                            <li>Visualize the steps and input the final result on the right.</li>
+                            <li>The grid will contain <strong>random numbers</strong> (1-9).</li>
+                            <li><strong>Rotate:</strong> Turns the entire grid 90°.</li>
+                            <li><strong>Flip:</strong> Mirrors the grid horizontally.</li>
+                            <li><strong>Swap:</strong> Switches two specific numbers.</li>
                         </ul>
                     </div>
                     <button 
@@ -235,7 +241,7 @@ const BlindGridPage: React.FC = () => {
                 </div>
             )}
 
-            {/* --- SOLVING PHASE (Side-by-Side View) --- */}
+            {/* --- SOLVING PHASE --- */}
             {phase === 'solving' && (
                 <div className="w-full max-w-6xl flex flex-col md:flex-row gap-8 items-start justify-center animate-in fade-in zoom-in-95 duration-500">
                     
@@ -248,22 +254,27 @@ const BlindGridPage: React.FC = () => {
                             <div className="text-xs text-gray-500">Apply Sequentially</div>
                         </div>
                         
-                        <div className="space-y-4">
-                            {/* Start State Indicator */}
-                            <div className="flex items-center gap-4 opacity-50 p-2 rounded bg-gray-800/30">
-                                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center font-bold text-sm">S</div>
-                                <p className="text-gray-400 font-bold">Start Position (1-9)</p>
+                        <div className="space-y-6">
+                            {/* Start State Indicator - NOW SHOWS ACTUAL RANDOM GRID */}
+                            <div className="flex flex-col items-center gap-2 p-4 rounded bg-gray-800 border border-gray-700">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-6 h-6 rounded-full bg-gray-600 flex items-center justify-center font-bold text-xs">S</div>
+                                    <h3 className="text-sm font-bold text-gray-300 uppercase">Start Configuration</h3>
+                                </div>
+                                <MiniGrid grid={initialGrid} />
                             </div>
 
                             {/* Command List */}
-                            {commandList.map((cmd, idx) => (
-                                <div key={cmd.id} className="flex items-center gap-4 p-3 rounded bg-gray-800 border border-gray-700">
-                                    <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold shadow-lg shadow-blue-900/50 shrink-0">
-                                        {idx + 1}
+                            <div className="space-y-3">
+                                {commandList.map((cmd, idx) => (
+                                    <div key={cmd.id} className="flex items-center gap-4 p-3 rounded bg-gray-800 border border-gray-700">
+                                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold shadow-lg shadow-blue-900/50 shrink-0">
+                                            {idx + 1}
+                                        </div>
+                                        <p className="text-lg font-bold text-white">{cmd.description}</p>
                                     </div>
-                                    <p className="text-lg font-bold text-white">{cmd.description}</p>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     </div>
 
