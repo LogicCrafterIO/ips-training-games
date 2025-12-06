@@ -267,8 +267,11 @@ export default function VoxelCarverPage() {
                             <input
                                 key={key}
                                 type="text"
-                                value={userInputs[key] || ''}
-                                onChange={(e) => handleCellInput(zIndex, row, col, e.target.value)}
+                                defaultValue={userInputs[key] || ''}
+                                onBlur={(e) => handleCellInput(zIndex, row, col, e.target.value.trim())}
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                maxLength={2}
                                 className="w-10 h-10 bg-gray-900 text-white text-center font-bold border border-gray-600 focus:border-red-500 focus:outline-none rounded"
                             />
                         );
